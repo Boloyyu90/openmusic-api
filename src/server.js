@@ -3,6 +3,7 @@
 // 1. Impor dan Konfigurasi Environment
 require('dotenv').config();
 const Hapi = require('@hapi/hapi');
+const Jwt = require('@hapi/jwt');
 
 // 2. Impor semua komponen dari fitur Albums
 const albums = require('./api/albums');
@@ -25,17 +26,23 @@ const AuthenticationsService = require('./services/postgres/AuthenticationsServi
 const AuthenticationsValidator = require('./validator/authentications');
 const TokenManager = require('./tokenize/TokenManager');
 
-// 6. Impor Custom Error
+// 6. Impor komponen dari fitur Playlists
+const playlists = require('./api/playlists');
+const PlaylistsService = require('./services/postgres/PlaylistsService');
+const PlaylistsValidator = require('./validator/playlists');
+
+// 7. Impor Custom Error
 const ClientError = require('./exceptions/ClientError');
 
 const init = async () => {
-  // 7. Buat instance untuk setiap service
+  // 8. Buat instance untuk setiap service
   const albumsService = new AlbumsService();
   const songsService = new SongsService();
   const usersService = new UsersService();
   const authenticationsService = new AuthenticationsService();
+  const playlistsService = new PlaylistsService();
 
-  // 8. Buat instance server Hapi
+  // 9. Buat instance server Hapi
   const server = Hapi.server({
     port: process.env.PORT,
     host: process.env.HOST,
@@ -46,7 +53,7 @@ const init = async () => {
     },
   });
 
-  // 9. Menerapkan Penanganan Error Global (onPreResponse)
+  // 10. Menerapkan Penanganan Error Global (onPreResponse)
   server.ext('onPreResponse', (request, h) => {
     const { response } = request;
 
@@ -81,7 +88,24 @@ const init = async () => {
     return h.continue;
   });
 
-  // 10. Registrasi semua plugin
+  // 11. Registrasi plugin eksternal
+  await server.register(Jwt);
+
+  // 12. Mendefinisikan strategy autentikasi JWT
+  server.auth.strategy('openmusic_jwt', 'jwt', {
+    keys: process.env.ACCESS_TOKEN_KEY,
+    verify: {
+      aud: false,
+      iss: false,
+      sub: false,
+    },
+    validate: (artifacts) => ({
+      isValid: true,
+      credentials: { userId: artifacts.decoded.payload.userId },
+    }),
+  });
+
+  // 13. Registrasi semua plugin
   await server.register([
     {
       plugin: albums,
@@ -113,9 +137,16 @@ const init = async () => {
         validator: AuthenticationsValidator,
       },
     },
+    {
+      plugin: playlists,
+      options: {
+        service: playlistsService,
+        validator: PlaylistsValidator,
+      },
+    },
   ]);
 
-  // 11. Jalankan server
+  // 14. Jalankan server
   await server.start();
   console.log(`Server berjalan pada ${server.info.uri}`);
 };

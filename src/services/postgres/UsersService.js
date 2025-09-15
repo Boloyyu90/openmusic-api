@@ -2,6 +2,7 @@ const { Pool } = require('pg');
 const { nanoid } = require('nanoid');
 const crypto = require('crypto');
 const InvariantError = require('../../exceptions/InvariantError');
+const AuthenticationError = require('../../exceptions/AuthenticationError');
 
 class UsersService {
   constructor() {
@@ -49,7 +50,7 @@ class UsersService {
     const result = await this._pool.query(query);
 
     if (!result.rowCount) {
-      throw new InvariantError('Kredensial yang Anda berikan salah');
+      throw new AuthenticationError('Kredensial yang Anda berikan salah');
     }
 
     const hashedPassword = crypto
@@ -59,7 +60,7 @@ class UsersService {
 
     const { id, password: storedPassword } = result.rows[0];
     if (storedPassword !== hashedPassword) {
-      throw new InvariantError('Kredensial yang Anda berikan salah');
+      throw new AuthenticationError('Kredensial yang Anda berikan salah');
     }
 
     return id;
